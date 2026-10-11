@@ -1,0 +1,49 @@
+{
+  "realm": "erp-realm",
+  "enabled": true,
+  "displayName": "ERP Realm",
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "Test",
+      "lastName": "User",
+      "email": "test@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password123"
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "erp-frontend",
+      "name": "ERP Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ]
+    },
+    {
+      "clientId": "erp-api",
+      "name": "ERP API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "erp-api-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:8081/*"
+      ]
+    }
+  ]
+}

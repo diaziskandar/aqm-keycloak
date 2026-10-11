@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Menggantikan api-gateway lama dengan edge-gateway baru
+  edge-gateway:
+    build:
+      context: ./edge-gateway
+      dockerfile: Dockerfile
+    image: edge-gateway:latest
+    container_name: edge-gateway-service
+    ports:
+      - "8888:8888"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - eurekaerp_erp-net
+    depends_on:
+      eureka-server:
+        condition: service_started
+    restart: unless-stopped
+
+  eureka-server:
+    build:
+      context: ./eurekaerp
+      dockerfile: Dockerfile
+    image: eurekaerp-eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - eurekaerp_erp-net
+    restart: unless-stopped
+
+  keycloak-db:
+    image: postgres:15-alpine
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password123
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - eurekaerp_erp-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.7
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password123
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8080
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_PROXY: edge
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./erp-realm.json:/opt/keycloak/data/import/erp-realm.json:ro
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - eurekaerp_erp-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+volumes:
+  keycloak_db_data:
+
+networks:
+  eurekaerp_erp-net:
+    driver: bridge

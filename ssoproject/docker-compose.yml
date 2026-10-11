@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  sso-db:
+    image: postgres:15-alpine
+    container_name: sso-db
+    environment:
+      POSTGRES_DB: sso_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - sso_db_data:/var/lib/postgresql/data
+    networks:
+      - sso-network
+
+  sso-backend:
+    build: ./backend
+    container_name: sso-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://sso-db:5432/sso_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=password123
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    depends_on:
+      - sso-db
+    networks:
+      - sso-network
+
+  sso-frontend:
+    build: ./frontend
+    container_name: sso-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - sso-backend
+    networks:
+      - sso-network
+
+volumes:
+  sso_db_data:
+
+networks:
+  sso-network:
+    driver: bridge

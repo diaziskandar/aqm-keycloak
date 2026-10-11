@@ -1,0 +1,22 @@
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: apigateway:latest
+    container_name: api-gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak:8080/realms/erp-realm
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      erp-net:
+        aliases:
+          - api-gateway
+    restart: unless-stopped
+
+networks:
+  erp-net:
+    external: true
+    name: eurekaerp_erp-net

@@ -1,0 +1,66 @@
+name: Build & Push Images
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'api-gateway/**'
+      - 'eureka-server/**'
+      - 'inventory-service/**'
+      - 'order-service/**'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: api-gateway
+            dockerfile: api-gateway/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/erp-api-gateway
+          - name: eureka-server
+            dockerfile: eureka-server/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/erp-eureka-server
+          - name: inventory-service
+            dockerfile: inventory-service/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/erp-inventory-service
+          - name: order-service
+            dockerfile: order-service/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/erp-order-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.service.image }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service.name }}
+          dockerfile: ./${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ matrix.service.image }}:buildcache
+          cache-to: type=registry,ref=${{ matrix.service.image }}:buildcache,mode=max
