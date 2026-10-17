@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Menggantikan api-gateway lama dengan edge-gateway baru
+  # 1. Edge Gateway
   edge-gateway:
     build:
       context: ./edge-gateway
@@ -19,6 +19,7 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # 2. Eureka Server
   eureka-server:
     build:
       context: ./eurekaerp
@@ -31,6 +32,7 @@ services:
       - eurekaerp_erp-net
     restart: unless-stopped
 
+  # 3. Keycloak Database
   keycloak-db:
     image: postgres:15-alpine
     container_name: keycloak-db
@@ -48,6 +50,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # 4. Keycloak Service
   keycloak:
     image: quay.io/keycloak/keycloak:23.0.7
     container_name: keycloak
@@ -88,6 +91,64 @@ services:
         reservations:
           cpus: '1'
           memory: 1G
+
+  # 5. Sales Service
+  sales-service:
+    build:
+      context: ./salesservice
+      dockerfile: Dockerfile
+    container_name: sales-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/erp_sales
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8080/realms/erp-realm
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak:8080/realms/erp-realm/protocol/openid-connect/certs
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
+      - EUREKA_CLIENT_FETCH_REGISTRY=true
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    volumes:
+      - ./salesservice/uploads:/app/uploads
+    depends_on:
+      - eureka-server
+    networks:
+      - eurekaerp_erp-net
+    restart: unless-stopped
+
+  # 6. Inventory Service
+  inventory-service:
+    image: diaziskandar/aqm-inventory-service:latest
+    container_name: inventory-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/erp_inventory
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
+      - EUREKA_CLIENT_FETCH_REGISTRY=true
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - eurekaerp_erp-net
+    depends_on:
+      - eureka-server
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
 volumes:
   keycloak_db_data:
